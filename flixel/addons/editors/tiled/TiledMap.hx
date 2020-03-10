@@ -1,11 +1,16 @@
 package flixel.addons.editors.tiled;
 
+import flixel.util.FlxColor;
+import flixel.util.typeLimit.OneOfTwo;
+import haxe.io.Path;
 import openfl.Assets;
-import haxe.xml.Fast;
 
-#if cpp
-import sys.io.File;
-import sys.FileSystem;
+using StringTools;
+
+#if haxe4
+import haxe.xml.Access;
+#else
+import haxe.xml.Fast as Access;
 #end
 
 /**
@@ -15,191 +20,173 @@ import sys.FileSystem;
  */
 class TiledMap
 {
-	public var version:String; 
+	public var version:String;
 	public var orientation:String;
-	
+
+	public var backgroundColor:FlxColor;
+
 	public var width:Int;
-	public var height:Int; 
-	public var tileWidth:Int; 
+	public var height:Int;
+	public var tileWidth:Int;
 	public var tileHeight:Int;
-	
+
 	public var fullWidth:Int;
 	public var fullHeight:Int;
-	
-	public var properties:TiledPropertySet;
-	
+
+	public var properties:TiledPropertySet = new TiledPropertySet();
+
+	/**
+	 * Use to get a tileset by name
+	 */
+	public var tilesets:Map<String, TiledTileSet> = new Map<String, TiledTileSet>();
+
+	/**
+	 * Use for iterating over tilesets, and for merging tilesets (because order is important)
+	 */
+	public var tilesetArray:Array<TiledTileSet> = [];
+
+	public var layers:Array<TiledLayer> = [];
+
 	// Add a "noload" property to your Map Properties.
 	// Add comma separated values of tilesets, layers, or object names.
 	// These will not be loaded.
-	private var noLoadHash:Map<String, Bool>;
-	
-	// Use hash, we don't care about order
-	public var tilesets: Map<String, TiledTileSet>;
-	// Use array to preserve load order
-	public var layers:Array<TiledLayer>;
-	public var objectGroups:Array<TiledObjectGroup>;
-	
-	public function new(Data:Dynamic)
+	var noLoadHash:Map<String, Bool> = new Map<String, Bool>();
+	var layerMap:Map<String, TiledLayer> = new Map<String, TiledLayer>();
+
+	var rootPath:String;
+
+	/**
+	 * @param data Either a string or XML object containing the Tiled map data
+	 * @param rootPath Path to use as root to resolve any internal file references
+	 */
+	public function new(data:FlxTiledMapAsset, ?rootPath:String)
 	{
-		properties = new TiledPropertySet();
-		var source:Fast = null;
-		var node:Fast = null;
-		
-		#if (LOAD_CONFIG_REAL_TIME && !neko)
-		// Load the asset located in the assets foldier, not the copies within bin folder
-		if (Std.is(Data, String)) 
+		var source:Access = null;
+
+		if (rootPath != null)
+			this.rootPath = rootPath;
+
+		if (Std.is(data, String))
 		{
-			source = new Fast(Xml.parse(File.getContent("../../../../" + Data)));
+			if (this.rootPath == null)
+				this.rootPath = Path.directory(data) + "/";
+			source = new Access(Xml.parse(Assets.getText(data)));
 		}
-		#else
-		if (Std.is(Data, String)) 
+		else if (Std.is(data, Xml))
 		{
-			source = new Fast(Xml.parse(Assets.getText(Data)));
+			if (this.rootPath == null)
+				this.rootPath = "";
+			var xml:Xml = cast data;
+			source = new Access(xml);
 		}
-		#end
-		else if (Std.is(Data, Xml)) 
-		{
-			source = new Fast(Data);
-		}
-		else 
-		{
-			throw "Unknown TMX map format";
-		}
-		
+
 		source = source.node.map;
-		
-		// map header
-		version = source.att.version;
-		
-		if (version == null) 
-		{
-			version = "unknown";
-		}
-		
-		orientation = source.att.orientation;
-		
-		if (orientation == null) 
-		{
-			orientation = "orthogonal";
-		}
-		
+
+		loadAttributes(source);
+		loadProperties(source);
+		loadTilesets(source);
+		loadLayers(source);
+	}
+
+	function loadAttributes(source:Access):Void
+	{
+		version = (source.att.version != null) ? source.att.version : "unknown";
+		orientation = (source.att.orientation != null) ? source.att.orientation : "orthogonal";
+		backgroundColor = (source.has.backgroundcolor && source.att.backgroundcolor != null) ? FlxColor.fromString(source.att.backgroundcolor) : FlxColor.TRANSPARENT;
+
 		width = Std.parseInt(source.att.width);
 		height = Std.parseInt(source.att.height);
 		tileWidth = Std.parseInt(source.att.tilewidth);
 		tileHeight = Std.parseInt(source.att.tileheight);
-		
+
 		// Calculate the entire size
 		fullWidth = width * tileWidth;
 		fullHeight = height * tileHeight;
-		
-		noLoadHash = new Map<String, Bool>();
-		tilesets = new Map<String, TiledTileSet>();
-		layers = new Array<TiledLayer>();
-		objectGroups = new Array<TiledObjectGroup>();
-		
-		// read properties
+	}
+
+	function loadProperties(source:Access):Void
+	{
 		for (node in source.nodes.properties)
 		{
 			properties.extend(node);
 		}
-		
+
 		var noLoadStr = properties.get("noload");
-		
 		if (noLoadStr != null)
 		{
-			var regExp = ~/[,;|]/;
-			var noLoadArr = regExp.split(noLoadStr);
-			
+			var noLoadArr = ~/[,;|]/.split(noLoadStr);
+
 			for (s in noLoadArr)
 			{
-				noLoadHash.set(StringTools.trim(s), true);
+				noLoadHash.set(s.trim(), true);
 			}
 		}
-		
-		// load tilesets
-		var name:String;
+	}
+
+	function loadTilesets(source:Access):Void
+	{
 		for (node in source.nodes.tileset)
 		{
-			name = node.att.name;
-			
+			var name = node.has.name ? node.att.name : "";
+
 			if (!noLoadHash.exists(name))
 			{
-				tilesets.set(name, new TiledTileSet(node));
-			}
-		}
-		
-		// load layer
-		for (node in source.nodes.layer)
-		{
-			name = node.att.name;
-			
-			if (!noLoadHash.exists(name))
-			{
-				layers.push( new TiledLayer(node, this) );
-			}
-		}
-		
-		// load object group
-		for (node in source.nodes.objectgroup)
-		{
-			name = node.att.name;
-			
-			if(!noLoadHash.exists(name))
-			{
-				objectGroups.push( new TiledObjectGroup(node, this) );
+				var ts = new TiledTileSet(node, rootPath);
+				tilesets.set(ts.name, ts);
+				tilesetArray.push(ts);
 			}
 		}
 	}
-	
-	public function getTileSet(Name:String):TiledTileSet
+
+	function loadLayers(source:Access):Void
 	{
-		return tilesets.get(Name);
-	}
-	
-	public function getLayer(Name:String):TiledLayer
-	{
-		var i = layers.length;
-		
-		while (i > 0)
+		for (el in source.elements)
 		{
-			if (layers[--i].name == Name)
+			if (el.has.name && noLoadHash.exists(el.att.name))
+				continue;
+
+			var layer:TiledLayer = switch (el.name.toLowerCase())
 			{
-				return layers[i];
+				case "group": new TiledGroupLayer(el, this, noLoadHash);
+				case "layer": new TiledTileLayer(el, this);
+				case "objectgroup": new TiledObjectLayer(el, this);
+				case "imagelayer": new TiledImageLayer(el, this);
+				case _: null;
+			}
+
+			if (layer != null)
+			{
+				layers.push(layer);
+				layerMap.set(layer.name, layer);
 			}
 		}
-		
-		return null;
 	}
-	
-	public function getObjectGroup(Name:String):TiledObjectGroup
+
+	public function getTileSet(name:String):TiledTileSet
 	{
-		var i = objectGroups.length;
-		
-		while (i > 0)
-		{
-			if (objectGroups[--i].name == Name)
-			{
-				return objectGroups[i];
-			}
-		}
-		
-		return null;
+		return tilesets.get(name);
 	}
-	
-	// works only after TiledTileSet has been initialized with an image...
-	public function getGidOwner(Gid:Int):TiledTileSet
+
+	public function getLayer(name:String):TiledLayer
 	{
-		var last:TiledTileSet = null;
-		var set:TiledTileSet;
-		
+		return layerMap.get(name);
+	}
+
+	/**
+	 * works only after TiledTileSet has been initialized with an image...
+	 */
+	public function getGidOwner(gid:Int):TiledTileSet
+	{
 		for (set in tilesets)
 		{
-			if (set.hasGid(Gid))
+			if (set.hasGid(gid))
 			{
 				return set;
 			}
 		}
-		
+
 		return null;
 	}
 }
+
+typedef FlxTiledMapAsset = OneOfTwo<String, Xml>;

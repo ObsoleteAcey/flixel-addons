@@ -1,11 +1,10 @@
 {
 	"name": "flixel-addons",
-	"url" : "http://haxeflixel.com",
+	"url" : "https://github.com/HaxeFlixel/flixel-addons",
 	"license": "MIT",
-	"tags": ["flash", "game", "cpp", "openfl"],
+	"tags": ["game", "openfl", "flash", "neko", "cpp", "android", "ios", "cross"],
 	"description": "flixel-addons is a set of useful, additional classes for HaxeFlixel.",
-	"version": "1.0.1",
-	"releasenote": "New features added (FlxTypeText / FlxGameJolt), improvements and bugfixes. See CHANGELOG.md for more details.",
-	"contributors": ["haxeflixel"],
-	"dependencies": { "openfl": "", "flixel": "" }
+	"version": "2.8.0",
+	"releasenote": "Redid FlxSliceSprite, added FlxOgmo3Loader and Tiled grouped layer support.",
+	"contributors": ["haxeflixel", "Gama11"]
 }

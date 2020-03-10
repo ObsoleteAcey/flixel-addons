@@ -1,63 +1,52 @@
 package flixel.addons.display.shapes;
 
-import flash.display.BitmapData;
-import flash.display.Shape;
 import flash.geom.Matrix;
+import flixel.util.FlxColor;
 import flixel.util.FlxSpriteUtil;
-import flixel.util.FlxSpriteUtil.LineStyle;
 
-class FlxShapeCircle extends FlxShape 
+class FlxShapeCircle extends FlxShape
 {
 	public var radius(default, set):Float;
 
 	/**
-	 * Creates a FlxSprite with a circle drawn on top of it. 
+	 * Creates a FlxSprite with a circle drawn on top of it.
 	 * X/Y is where the SPRITE is, the circle's upper-left
-	 * @param	X x position of the canvas
-	 * @param	Y y position of the canvas
-	 * @param	Radius 
-	 * @param	LineStyle_
-	 * @param	FillStyle_
 	 */
-	
-	public function new(X:Float, Y:Float, Radius:Float, LineStyle_:LineStyle, FillStyle_:FillStyle) 
+	public function new(X:Float, Y:Float, Radius:Float, LineStyle_:LineStyle, FillColor:FlxColor)
 	{
-		shape_id = "circle";
-		
-		lineStyle = LineStyle_;
-		fillStyle = FillStyle_;
-		
-		var strokeBuffer:Float = (lineStyle.thickness);
-		
+		super(X, Y, 0, 0, LineStyle_, FillColor, Radius * 2, Radius * 2);
+
 		radius = Radius;
-		
-		var trueWidth:Float = radius * 2;
-		var trueHeight:Float = trueWidth;
-		
-		var w:Float = trueWidth + strokeBuffer;		//create buffer space for stroke
-		var h:Float = trueHeight + strokeBuffer;
-		
-		if (w <= 0)
-		{
-			w = strokeBuffer;
-		}
-		if (h <= 0) 
-		{
-			h = strokeBuffer;
-		}
-		
-		super(X, Y, w, h, lineStyle, fillStyle, trueWidth, trueHeight);
+
+		shape_id = FlxShapeType.CIRCLE;
 	}
-	
-	public function set_radius(r:Float):Float
+
+	override public inline function drawSpecificShape(?matrix:Matrix):Void
+	{
+		FlxSpriteUtil.drawCircle(this, radius, radius, radius, fillColor, lineStyle, {matrix: matrix});
+	}
+
+	inline function set_radius(r:Float):Float
 	{
 		radius = r;
+		shapeWidth = r * 2;
+		shapeHeight = r * 2;
 		shapeDirty = true;
 		return radius;
 	}
 
-	public override function drawSpecificShape(matrix:Matrix=null):Void 
+	override function getStrokeOffsetX():Float
 	{
-		FlxSpriteUtil.drawCircle(this, Math.ceil(width / 2), Math.ceil(height / 2), radius, fillStyle.color, lineStyle, { matrix: matrix });
+		return strokeBuffer / 2;
+	}
+
+	override function getStrokeOffsetY():Float
+	{
+		return strokeBuffer / 2;
+	}
+
+	override function get_strokeBuffer():Float
+	{
+		return lineStyle.thickness * 1.0;
 	}
 }

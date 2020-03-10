@@ -1,48 +1,50 @@
 package flixel.addons.editors.tiled;
 
-import haxe.xml.Fast;
+#if haxe4
+import haxe.xml.Access;
+#else
+import haxe.xml.Fast as Access;
+#end
 
 /**
  * Copyright (c) 2013 by Samuel Batista
  * (original by Matt Tuttle based on Thomas Jahn's. Haxe port by Adrien Fischer)
  * This content is released under the MIT License.
  */
-class TiledPropertySet implements Dynamic<String>
+class TiledPropertySet #if (haxe_ver < 4) implements Dynamic<String> #end
 {
+	public var keys:Map<String, String>;
+
 	public function new()
 	{
 		keys = new Map<String, String>();
 	}
-	
-	inline public function get(Key:String):String 
+
+	public inline function get(Key:String):String
 	{
 		return resolve(Key);
 	}
-	
-	inline public function contains(Key:String):Bool
+
+	public inline function contains(Key:String):Bool
 	{
 		return keys.exists(Key);
 	}
-	
-	inline public function resolve(Name:String):String
+
+	public inline function resolve(Name:String):String
 	{
 		return keys.get(Name);
 	}
-	
-	inline public function keysIterator():Iterator<String>
+
+	public inline function keysIterator():Iterator<String>
 	{
 		return keys.keys();
 	}
-	
-	public function extend(Source:Fast)
+
+	public function extend(Source:Access)
 	{
-		var prop:Fast;
-		
 		for (prop in Source.nodes.property)
 		{
 			keys.set(prop.att.name, prop.att.value);
 		}
 	}
-	
-	public var keys:Map<String, String>;
 }
